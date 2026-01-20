@@ -43,7 +43,7 @@ class Planet(object):
 
     def gap_profile(self, disc):
         """Compute the gap profile. I.e. the fractional change in surface 
-            density.
+            density. (Gap depth)
 
         Parameters
         ----------
@@ -51,9 +51,9 @@ class Planet(object):
             The disc in which the planet is embedded.
         """
 
-        q = self._Mp * Mjup / (disc.star.M * Msun)
-        h = disc.interp(self._ap, disc.H) / self._ap
-        a = disc.interp(self._ap, disc.alpha * np.ones_like(disc.R))
+        q = self._Mp * Mjup / (disc.star.M * Msun) # planet-star mass ratio
+        h = disc.interp(self._ap, disc.H) / self._ap # aspect ratio at planet location
+        a = disc.interp(self._ap, disc.alpha * np.ones_like(disc.R)) # alpha at planet location
 
         # D^3 and \tilde{q} in Duffel (2019)
         x = (disc.R / self._ap)
