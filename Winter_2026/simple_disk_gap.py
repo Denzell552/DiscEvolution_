@@ -34,7 +34,7 @@ start_time = time.time()
 def run_model(config):
 
     """
-    Rune the disk evolution model and plot the results
+    Run the disk evolution model and plot the results
     
     Parameters:
     config(dict): configuration dictionary containing all perameters
@@ -526,11 +526,11 @@ def run_model(config):
 
             else:
                 # apply gap to disc surface density
-                disc.Sigma[:] *= depth
-                disc.update(0)
+                #disc.Sigma[:] *= depth
+                #disc.update(0)
 
                 # OR apply gap profile using set_gap_profile method
-                #disc.set_gap_profile(depth)
+                disc.set_gap_profile(depth)
     
         elif gap_params['type'] == 'kanagawa2016':
             ''' Gap profile 2: Using kanagawa 2016 to set gap profile '''
@@ -555,16 +555,17 @@ def run_model(config):
 
             else:
                 # apply gap to disc surface density
-                disc.Sigma[:] *= gap_depth
-                disc.update(0)
+                #disc.Sigma[:] *= gap_depth
+                #disc.update(0)
     
                 # OR apply gap profile using set_gap_profile method
-                #disc.set_gap_profile(gap_depth)
+                disc.set_gap_profile(gap_depth)
     
+
     # Preparing plots
     # ========================
 
-    fig, axes = plt.subplots(5, 2, figsize=(20, 30))
+    fig, axes = plt.subplots(4, 2, figsize=(20, 24))
     plt.subplots_adjust(bottom=0.6, top=0.9)
 
     # find Mdot to display below
@@ -683,14 +684,14 @@ def run_model(config):
                     print('\rTime: {} Myr'.format(t / (1.e6* 2 * np.pi)), flush="True")
                     print('\rdt: {} yr'.format(dt / (2 * np.pi)), flush="True")
                 
-        
+
             # appending data for output
             data["R"].append(grid.Rc.copy().tolist())
             data["Sigma_G"].append(disc.Sigma_G.copy().tolist())
             data["Sigma_dust"].append(disc.Sigma_D[0].copy().tolist())
             data["Sigma_pebbles"].append(disc.Sigma_D[1].copy().tolist())
             data["T"].append(disc.T.tolist())
-
+            
 
             # plotting gas surface densitu and grain size
             axes[0][0].loglog(grid.Rc, disc.Sigma_G, color=next(color1), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
@@ -710,12 +711,14 @@ def run_model(config):
             # plotting nu
             axes[3][1].loglog(grid.Rc, disc.nu, color=next(color6), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
 
+            '''
             # plotting drag timescale for pebbles
             t_drag_pebbles = (disc.Stokes()[1] / star.Omega_k(grid.Rc)) * 2 * np.pi # in years
             t_drag_dust = (disc.Stokes()[0] / star.Omega_k(grid.Rc)) * 2 * np.pi  # in years
             
             axes[4][0].loglog(grid.Rc, t_drag_dust, color=next(color7), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
             axes[4][1].loglog(grid.Rc, t_drag_pebbles, color=next(color8), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
+            '''
 
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
@@ -735,14 +738,14 @@ def run_model(config):
 
         axes[1][0].minorticks_off()
         axes[1][0].legend(fontsize=10)
-        axes[1][0].set_ylim(10**-7, 10**3)
+        axes[1][0].set_ylim(10**-7, 10**4)
         axes[1][0].set_xlabel('Radius (AU)', fontsize=15)
         axes[1][0].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][0].set_title('Dust Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         
         axes[1][1].minorticks_off()
         axes[1][1].legend(fontsize=10)
-        axes[1][1].set_ylim(10**-7, 10**3)
+        axes[1][1].set_ylim(10**-7, 10**4)
         axes[1][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[1][1].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][1].set_title('Pebble Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
@@ -771,6 +774,7 @@ def run_model(config):
         axes[3][1].set_ylabel('Nu', fontsize=15)
         axes[3][1].set_title('Viscosity Nu with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         
+        '''
         axes[4][0].minorticks_off()
         axes[4][0].legend(fontsize=10)
         axes[4][0].set_xlabel('Radius (AU)', fontsize=15)
@@ -782,7 +786,8 @@ def run_model(config):
         axes[4][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[4][1].set_ylabel('Drag Timescale (yr)', fontsize=15)
         axes[4][1].set_title('Pebble drag timescale with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17) 
-        
+        '''
+
         plt.tight_layout(pad=3.5)
         
         # saving figure
@@ -797,7 +802,7 @@ if __name__ == "__main__":
     # Define configuration dictionary
     config = {
         "grid": {
-            "rmin": 1,
+            "rmin": 0.1,
             "rmax": 1000,
             "nr": 1000,
             "spacing": "natural",
@@ -815,7 +820,7 @@ if __name__ == "__main__":
             "t_interval": [0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0], #Myr
         },
         "disc": {
-            "alpha": 1e-3,
+            "alpha": 1e-4,
             "M": 0.5, # solar masses
             "d2g": 0.01,
             "Mdot": 8.85e-9, # for Tmax=1500
