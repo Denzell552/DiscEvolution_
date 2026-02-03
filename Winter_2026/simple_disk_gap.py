@@ -521,16 +521,13 @@ def run_model(config):
             # gap depth array
             depth = planet.gap_profile(disc)
 
-            if gap_params['evolve']:
-                sigma_copy = disc.Sigma.copy()
+            # apply gap to disc surface density
+            #disc.Sigma[:] *= depth
+            #disc.update(0)
 
-            else:
-                # apply gap to disc surface density
-                #disc.Sigma[:] *= depth
-                #disc.update(0)
+            # OR apply gap profile using set_gap_profile method
+            disc.set_gap_profile(depth)
 
-                # OR apply gap profile using set_gap_profile method
-                disc.set_gap_profile(depth)
     
         elif gap_params['type'] == 'kanagawa2016':
             ''' Gap profile 2: Using kanagawa 2016 to set gap profile '''
@@ -546,26 +543,22 @@ def run_model(config):
 
             depth_p = 1 / (1 + 0.04 * K)  
             width = 0.41 * Rp * K_prime**0.25  
-    
+            
             # Gaussian-like gap profile centered on planet
             gap_depth = 1 - (1 - depth_p) * np.exp(-((grid.Rc - Rp) / width)**4)
 
-            if gap_params['evolve']:
-                sigma_copy = disc.Sigma.copy()
-
-            else:
-                # apply gap to disc surface density
-                #disc.Sigma[:] *= gap_depth
-                #disc.update(0)
+            # apply gap to disc surface density
+            #disc.Sigma[:] *= gap_depth
+            #disc.update(0)
     
-                # OR apply gap profile using set_gap_profile method
-                disc.set_gap_profile(gap_depth)
+             # OR apply gap profile using set_gap_profile method
+            disc.set_gap_profile(gap_depth)
     
 
     # Preparing plots
     # ========================
 
-    fig, axes = plt.subplots(4, 2, figsize=(20, 24))
+    fig, axes = plt.subplots(3, 2, figsize=(20, 18))
     plt.subplots_adjust(bottom=0.6, top=0.9)
 
     # find Mdot to display below
@@ -625,17 +618,6 @@ def run_model(config):
                     ice_chem = disc.chem.ice.data
                 except AttributeError:
                     pass
-                
-                # update gap profile
-                if gap_params['on'] and gap_params['evolve']:
-                    if (n%100) == 0:
-                        pass
-                        #disc.Sigma[:] = np.minimum(disc.Sigma, disc.Sigma * gap_depth)
-                        #disc.Sigma[:] = sigma_copy * gap_depth
-
-                        #inner_edge = np.argmin(np.abs(grid.Rc - Rp - 0.5*width))
-                        #outer_edge = np.argmin(np.abs(grid.Rc - Rp + 0.5*width))
-                        #disc.Sigma[inner_edge:outer_edge] = sigma_copy[inner_edge:outer_edge] * gap_depth[inner_edge:outer_edge]
 
                 # Do gas evolution
                 if transport_params['gas_transport']:
@@ -705,88 +687,46 @@ def run_model(config):
             axes[2][0].semilogx(grid.Rc, gammaP(disc), color=next(color3), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # pressure gradient
             axes[2][1].loglog(grid.Rc, disc.P, color=next(color4), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # Pressure
 
-            # plotting temperature profile
-            axes[3][0].loglog(grid.Rc, disc.T, color=next(color5), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-
-            # plotting nu
-            axes[3][1].loglog(grid.Rc, disc.nu, color=next(color6), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-
-            '''
-            # plotting drag timescale for pebbles
-            t_drag_pebbles = (disc.Stokes()[1] / star.Omega_k(grid.Rc)) * 2 * np.pi # in years
-            t_drag_dust = (disc.Stokes()[0] / star.Omega_k(grid.Rc)) * 2 * np.pi  # in years
-            
-            axes[4][0].loglog(grid.Rc, t_drag_dust, color=next(color7), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-            axes[4][1].loglog(grid.Rc, t_drag_pebbles, color=next(color8), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-            '''
-
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
 
+        outer_edge = np.argmin(np.abs(grid.Rc - (Rp + width/2)))
+        inner_edge = np.argmin(np.abs(grid.Rc - (Rp - width/2)))
+
+        for row in range(len(axes)):
+            for column in range(len(axes[row])):
+                axes[row][column].axvline(grid.Rc[outer_edge], color='k', linestyle='--', label='Outer Gap Edge')
+                axes[row][column].axvline(grid.Rc[inner_edge], color='r', linestyle='--', label='Inner Gap Edge')  
+                axes[row][column].minorticks_off()
+                axes[row][column].legend(fontsize=10)
+                axes[row][column].grid(True)
+
         # plotting configuration
-        axes[0][0].minorticks_off()
-        axes[0][0].legend(fontsize=10)
         axes[0][0].set_xlabel('Radius (AU)', fontsize=15)
         axes[0][0].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[0][0].set_title('Gas Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         
-        axes[0][1].minorticks_off()
-        axes[0][1].legend(fontsize=10)
         axes[0][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[0][1].set_ylabel('Grain Size (cm)', fontsize=15)
         axes[0][1].set_title('Characteristic Pebble Size with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
 
-        axes[1][0].minorticks_off()
-        axes[1][0].legend(fontsize=10)
         axes[1][0].set_ylim(10**-7, 10**4)
         axes[1][0].set_xlabel('Radius (AU)', fontsize=15)
         axes[1][0].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][0].set_title('Dust Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        axes[1][1].minorticks_off()
-        axes[1][1].legend(fontsize=10)
+
         axes[1][1].set_ylim(10**-7, 10**4)
         axes[1][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[1][1].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][1].set_title('Pebble Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
 
-        axes[2][0].minorticks_off()
-        axes[2][0].legend(fontsize=10)
         axes[2][0].set_xlabel('Radius (AU)', fontsize=15)
         axes[2][0].set_ylabel('dP/dR', fontsize=15)
         axes[2][0].set_title('Pressure Gradient with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        axes[2][1].minorticks_off()
-        axes[2][1].legend(fontsize=10)
+
         axes[2][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[2][1].set_ylabel('Pressure (Pa)', fontsize=15)
         axes[2][1].set_title('Pressure over Disc Radius with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-
-        axes[3][0].minorticks_off()
-        axes[3][0].legend(fontsize=10)
-        axes[3][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[3][0].set_ylabel('Temperature (K)', fontsize=15)
-        axes[3][0].set_title('Temperature Profile with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        axes[3][1].minorticks_off()
-        axes[3][1].legend(fontsize=10)
-        axes[3][1].set_xlabel('Radius (AU)', fontsize=15)
-        axes[3][1].set_ylabel('Nu', fontsize=15)
-        axes[3][1].set_title('Viscosity Nu with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        '''
-        axes[4][0].minorticks_off()
-        axes[4][0].legend(fontsize=10)
-        axes[4][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[4][0].set_ylabel('Drag Timescale (yr)', fontsize=15)
-        axes[4][0].set_title('Dust drag timescale with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17) 
-        
-        axes[4][1].minorticks_off()
-        axes[4][1].legend(fontsize=10)
-        axes[4][1].set_xlabel('Radius (AU)', fontsize=15)
-        axes[4][1].set_ylabel('Drag Timescale (yr)', fontsize=15)
-        axes[4][1].set_title('Pebble drag timescale with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17) 
-        '''
 
         plt.tight_layout(pad=3.5)
         
@@ -820,8 +760,8 @@ if __name__ == "__main__":
             "t_interval": [0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0], #Myr
         },
         "disc": {
-            "alpha": 1e-4,
-            "M": 0.5, # solar masses
+            "alpha": 1e-3,
+            "M": 0.05, # solar masses
             "d2g": 0.01,
             "Mdot": 8.85e-9, # for Tmax=1500
             "Sc": 1.0, # schmidt number
@@ -831,7 +771,7 @@ if __name__ == "__main__":
         "eos": {
             "type": "LocallyIsothermalEOS", # "SimpleDiscEOS", "LocallyIsothermalEOS", or "IrradiatedEOS"
             "opacity": "Tazzari",
-            "h0": 0.035,
+            "h0": 0.05455,
             "q": -1/4,
             "Tmax": 1500.
         },
@@ -860,7 +800,7 @@ if __name__ == "__main__":
             'include_planets': False,
             "planet_model": "Bitsch2015Model",
             "Rp": [10], #[1, 5, 10, 20, 30], # initial position of embryo [AU]
-            "Mp": [2], #[0.1, 0.1, 0.1, 0.1, 0.1], # initial mass of embryo [M_Earth]
+            "Mp": [1], #[0.1, 0.1, 0.1, 0.1, 0.1], # initial mass of embryo [M_Earth]
             "implant_time": [2], # 2pi*t(years)
             "pb_gas_f": 0.05, # Percent of accreted solids converted to gas
             "migrate" : False,
@@ -883,7 +823,6 @@ if __name__ == "__main__":
         "gap": {
             'on':True,
             'type':'kanagawa2016', # 'duffell2019' or 'kanagawa2016'
-            'evolve': False
         }
     }
 

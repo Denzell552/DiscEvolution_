@@ -519,14 +519,14 @@ def run_model(config):
             )
 
             # gap depth array
-            depth = planet.gap_profile(disc)
+            gap_depth = planet.gap_profile(disc)
 
             # apply gap to disc surface density
             #disc.Sigma[:] *= depth
             #disc.update(0)
 
             # OR apply gap profile using set_gap_profile method
-            disc.set_gap_profile(depth)
+            disc.set_gap_profile(gap_depth)
     
         elif gap_params['type'] == 'kanagawa2016':
             ''' Gap profile 2: Using kanagawa 2016 to set gap profile '''
@@ -798,10 +798,10 @@ def run_model(config):
         plt.tight_layout(pad=3.5)
         
         # saving figure
-        fig.savefig(f"Winter_2026/Figs/Gap_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.png")
+        fig.savefig(f"Winter_2026/Figs/Gap_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.png")
 
         # Save data to json
-        with open(f"Winter_2026/Data/Gap_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.json", "w") as f:
+        with open(f"Winter_2026/Data/Gap_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.json", "w") as f:
             json.dump(data, f)
 
 
@@ -828,7 +828,7 @@ if __name__ == "__main__":
         },
         "disc": {
             "alpha": 1e-3,
-            "M": 0.5, # solar masses
+            "M": 0.05, # solar masses
             "d2g": 0.01,
             "Mdot": 8.85e-9, # for Tmax=1500
             "Sc": 1.0, # schmidt number
