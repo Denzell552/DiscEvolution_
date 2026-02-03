@@ -519,15 +519,14 @@ def run_model(config):
             )
 
             # gap depth array
-            depth = planet.gap_profile(disc)
+            gap_depth = planet.gap_profile(disc)
 
             # apply gap to disc surface density
-            #disc.Sigma[:] *= depth
+            #disc.Sigma[:] *= gap_depth
             #disc.update(0)
 
             # OR apply gap profile using set_gap_profile method
-            disc.set_gap_profile(depth)
-
+            disc.set_gap_profile(gap_depth)
     
         elif gap_params['type'] == 'kanagawa2016':
             ''' Gap profile 2: Using kanagawa 2016 to set gap profile '''
