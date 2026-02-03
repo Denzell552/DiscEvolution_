@@ -689,7 +689,7 @@ if __name__ == "__main__":
         },
         "disc": {
             "alpha": 1e-3,
-            "M": 0.5, # solar masses
+            "M": 0.05, # solar masses
             "d2g": 0.01,
             "Mdot": 8.85e-9, # for Tmax=1500
             "Sc": 1.0, # schmidt number
