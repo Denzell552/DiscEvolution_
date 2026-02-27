@@ -33,12 +33,13 @@ plt.rcParams.update({'font.size': 16})
 
 gas_solver=ViscousEvolutionFV
 
-def run_model(config):
+def run_model(config, cli_output_dir=None):
     """
     Run the disk evolution model and plot the results.
     
     Parameters:
     config (dict): Configuration dictionary containing all parameters.
+    cli_output_dir (str, optional): Output directory from command-line argument (highest priority).
     """
     # Extract parameters from config
     grid_params = config['grid']
@@ -641,8 +642,8 @@ def run_model(config):
         print("Running model.  Alpha, Rd, Mdisk=", eos.alpha, Rd, disc.Mtot()/Msun)
 
         # Output filename (HDF5)
-        # Use environment variable DISCEVOLUTION_OUTPUT if set, otherwise fall back to config or default
-        output_dir = os.environ.get('DISCEVOLUTION_OUTPUT', sim_params.get('output_dir', './output'))
+        # Priority: CLI argument > environment variable > config file > default
+        output_dir = cli_output_dir or os.environ.get('DISCEVOLUTION_OUTPUT', sim_params.get('output_dir', './output'))
         os.makedirs(output_dir, exist_ok=True)
         
         filename = f"winds_mig_psi{wind_params['psi_DW']}_Mdot{disc_params['Mdot']:.1e}_M{disc_params['M']:.1e}_Rd{disc_params['Rd']:.1e}.h5"
@@ -1228,4 +1229,4 @@ Examples:
         config["simulation"]["output_dir"] = args.output_dir
         print(f"Overriding output_dir: {args.output_dir}")
     
-    run_model(config)
+    run_model(config, cli_output_dir=args.output_dir)
