@@ -463,7 +463,7 @@ def run_model(config):
         if wind_params["on"]:
             gas = HybridWindModel(wind_params['psi_DW'], lambda_DW)
         else:
-            gas = ViscousEvolutionFV()
+            gas = ViscousEvolution()
     
     diffuse = None
     if transport_params['diffusion']:
@@ -530,6 +530,21 @@ def run_model(config):
 
             # OR apply gap profile using set_gap_profile method
             disc.set_gap_profile(gap_depth)
+
+            def edge():
+                '''Calculate the location of the gap edge, defined as where the gap starts to dip'''
+                
+                edges = []
+
+                for i in gap_depth:
+                    if i / np.max(gap_depth) < 0.98: # if gap depth is 98% of max depth, we are at the edge
+                        idx = np.argmin(np.abs(gap_depth - i))
+                        edges.append(grid.Rc[idx])
+
+                idx_inner = np.argmin(np.abs(grid.Rc - edges[0]))
+                idx_outer = np.argmin(np.abs(grid.Rc - edges[-1]))
+    
+                return edges[0], edges[-1], idx_inner, idx_outer
     
         elif gap_params['type'] == 'kanagawa2016':
             ''' Gap profile 2: Using kanagawa 2016 to set gap profile '''
@@ -558,54 +573,46 @@ def run_model(config):
             disc.set_gap_profile(gap_depth)
    
     
-    def M_flux(disc, location=slice(None)):
+    def M_flux(disc):
         """Compute the radial flux of dust in the disk.
         
         Parameters
         ----------
         disc : Disc
             The disc object containing the dust properties.
-        
-        location : slice, optional
-            The radial location(s) at which to compute the flux. Default is all locations.
 
         Returns
         -------
         flux : ndarray
             The radial flux of dust and pebbles at each grid point.
         """
-        v_dust = np.abs(disc.v_drift[0][location])
-        flux_D = 2 * np.pi * grid.Rc[location] * disc.Sigma_D[0][location] * v_dust
+        global dust_v_cm, pebble_v_cm
 
-        v_pebbles = np.abs(disc.v_drift[1][location])
-        flux_P = 2 * np.pi * grid.Rc[location] * disc.Sigma_D[1][location] * v_pebbles
-        
+        v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
+
+        # for dust grains
+        dust_v = (disc.v_drift[0][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
+        f_D = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[0][:-1] * np.abs(dust_v)
+        flux_D = f_D * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
+
+        dust_v_cm = dust_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+
+        # for pebbles
+        pebble_v = (disc.v_drift[1][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
+        f_P = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[1][:-1] * np.abs(pebble_v)
+        flux_P = f_P * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
+
+        pebble_v_cm = pebble_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+
         return flux_D, flux_P
     
 
     # Preparing plots
     # ========================
 
-    fig, axes = plt.subplots(2, 2, figsize=(20, 12))
-    plt.subplots_adjust(bottom=0.6, top=0.9)
-
     # find Mdot to display below
     vr = disc._gas.viscous_velocity(disc, Sigma)
     Mdot = disc.Mdot(vr[0])
-
-    # for grid slices
-    x1 = np.argmin(np.abs(grid.Rc/Rp - 0.25))
-    x2 = np.argmin(np.abs(grid.Rc/Rp - 3))
-        
-    # display disk characteristics
-    plt.figtext(0.5, 0.01, f"Mdot={Mdot:.3e}, alpha={disc._eos._alpha_t:.3e}, Mtot={disc.Mtot()/Msun:.3e}, Rd={disc.RC():.3e}", ha="center", fontsize=12)
-    fig.suptitle(f'Disc Evoltion with Planetary Gap q = {Mp*Mjup / (star_params["M"]*Msun):.2e}', fontsize=20)
-
-    # gradient colors also present to give options
-    color1=iter(plt.cm.Blues(np.linspace(0.4, 1, 8)))
-    color2=iter(plt.cm.Greys(np.linspace(0.4, 1, 8)))
-    color3=iter(plt.cm.Greens(np.linspace(0.4, 1, 8)))
-    color4=iter(plt.cm.Reds(np.linspace(0.4, 1, 8)))
 
 
     # Run model
@@ -613,13 +620,42 @@ def run_model(config):
     t = 0
     n = 0
     data = {}
-    data["R"] = []
+    data['parameters'] = {
+        "Mdot": Mdot,
+        "alpha": disc._eos._alpha_t,
+        "Mdisk": disc.Mtot()/Msun,
+        "Rd": disc.RC(),
+        "Mtot": disc.Mtot()/Msun}
+    data["R"] = grid.Rc.copy().tolist()
     data["Sigma_G"] = []
     data["Sigma_dust"] = []
     data["Sigma_pebbles"] = []
     data['pebble_size'] = []
-    data['orbits'] = []
+    data['pebble_velocity'] = []
+    data['dust_velocity'] = []
+    data['frag_velocity'] = []
+    data['time'] = list(sim_params['t_interval'])
+    #data['drift_limit'] = []
+    #data['frag_limit'] = []
+    #data['drifttime_limit'] = []
+    data['pebble_flux_15'] = []
+    data['pebble_flux_2'] = []
+    data['total_flux'] = []
+    data['accreted_pebbles'] = []
+    data['accreted_dust'] = []
+    data['total_accreted_mass_fraction'] = []
+    data['total_grain_mass'] = []
+    data['gap_edge'] = [float(edge()[0]), float(edge()[1]), int(edge()[2]), int(edge()[3])] if gap_params['on'] else None
 
+    # initializing dust to only after 15AU (index 113)
+    disc.dust_frac[0][:113] = 0
+    disc.dust_frac[1][:113] = 0
+
+    # grain accretion data set up
+    total_grain_mass = disc.Mdust() # in grams
+    accreted_pebbles = 0
+    accreted_dust = 0
+    accreted_total = 0
 
     if alpha_SS > 5e-3:
         print ("Not Running model - alpha too high.  Alpha, Rd, Mdisk=",eos.alpha, Rd, disc.Mtot()/Msun)
@@ -633,7 +669,7 @@ def run_model(config):
                     dt = min(dt, disc._gas.max_timestep(disc))
                 if transport_params['radial_drift']:
                     dt = min(dt, dust.max_timestep(disc))
-                
+
                 # Extract updated dust frac to update gas
                 dust_frac = None
                 try:
@@ -678,6 +714,27 @@ def run_model(config):
                         else: 
                             dust_frac[:] += dt * diffuse(disc, dust_frac[:])
 
+                # calculating the accreted mass in this timestep using the flux (in Mearth/year)
+                '''
+                dt_years = dt / (2 * np.pi) # convert from code units to years
+                flux_D_step, flux_P_step = M_flux(disc)
+                dM_dust = flux_D_step[0] * dt_years * Mearth # in grams
+                dM_pebble = flux_P_step[0] * dt_years * Mearth # in grams
+                accreted_dust += dM_dust
+                accreted_pebbles += dM_pebble
+                accreted_total += (dM_dust + dM_pebble)
+                '''
+
+                # getting donor flux
+                DeltaV = dust._compute_deltaV(disc)
+                face_flux = dust._donor_flux(disc.grid.Ree, DeltaV, disc.Sigma, disc.dust_frac[:2]) 
+
+                dM_dust = 2 * np.pi * grid.Rc[0] * face_flux[0][0] * dt * AU**2 # in grams
+                dM_pebble = 2 * np.pi * grid.Rc[0] * face_flux[1][0] * dt * AU**2 # in grams
+                accreted_dust += dM_dust
+                accreted_pebbles += dM_pebble
+                accreted_total += (dM_dust + dM_pebble)
+                
                 # Pin the values to >= 0 and <=1:
                 disc.Sigma[:] = np.maximum(disc.Sigma, 0)     
                 disc.dust_frac[:] = np.maximum(disc.dust_frac, 0)
@@ -690,75 +747,52 @@ def run_model(config):
                 t += dt
                 n += 1
 
-                # Orbit counter (use planet radius if gap is on, else 1 AU)
-                R_orb = planet_params['Rp'][0] if gap_params['on'] else 1.0
-                Omega = star.Omega_k(R_orb)  # rad/yr
-                t_years = t / (2 * np.pi)    # convert to years
-                n_orbits = Omega * t_years / (2 * np.pi)
-
                 # print status every 1000 steps
                 if (n % 1000) == 0:
-                    print(f"Orbit number at {R_orb:.2f} AU: {n_orbits:.2f}", flush='True')
                     print('\rNstep: {}'.format(n), flush="True")
                     print('\rTime: {} Myr'.format(t / (1.e6* 2 * np.pi)), flush="True")
                     print('\rdt: {} yr'.format(dt / (2 * np.pi)), flush="True")
-
-                if (n_orbits % 10000) == 0:
-                    data['orbits'].append([n_orbits, t / (1.e6* 2 * np.pi)])
-                    print(f"Saved orbit data at {n_orbits:.2f} orbits at {t / (1.e6* 2 * np.pi):.2f} Myr.")
                 
-            
+
+            # fragmentation velovity in m/s
+            frag_vel = disc._frag_velocity(0) * AU * Omega0 / 100
+
+            # dust flux in Earth masses per year
+            flux_D, flux_P = M_flux(disc)
+            r_15 = np.argmin(np.abs(grid.Rc - 15))
+            r_2 = np.argmin(np.abs(grid.Rc - 2))
+            pebble_flux_15 = flux_P[r_15]
+            pebble_flux_2 = flux_P[r_2] 
+
+
             # appending data for output 
-            data["R"].append(grid.Rc.copy().tolist())
             data["Sigma_G"].append(disc.Sigma_G.copy().tolist())
             data["Sigma_dust"].append(disc.Sigma_D[0].copy().tolist())
             data["Sigma_pebbles"].append(disc.Sigma_D[1].copy().tolist())
             data['pebble_size'].append(disc.grain_size[1].copy().tolist())
+            data['pebble_velocity'].append(disc.v_drift[1].copy().tolist())
+            data['dust_velocity'].append(disc.v_drift[0].copy().tolist())
+            data['frag_velocity'].append(frag_vel)
+            #data['drift_limit'].append(disc._drift_limit(disc.dust_frac.sum(0))[1].copy().tolist())
+            #data['frag_limit'].append(disc._frag_limit().copy().tolist())
+            #data['drifttime_limit'].append(disc._drift_limit(disc.dust_frac.sum(0))[0].copy().tolist())
+            data['pebble_flux_15'].append(float(pebble_flux_15))
+            data['pebble_flux_2'].append(float(pebble_flux_2))
+            data['total_flux'].append(flux_P.copy().tolist())
+            data['accreted_pebbles'].append(accreted_pebbles)
+            data['accreted_dust'].append(accreted_dust)
+            data['total_accreted_mass_fraction'].append(accreted_total)
+            data['total_grain_mass'].append(disc.Mdust().copy())
 
-            # plotting gas surface density, grain size and pebble density
-            axes[0][0].semilogy(grid.Rc[x1:x2]/Rp, disc.Sigma_G[x1:x2], color=next(color1), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-            axes[0][1].semilogy(grid.Rc[x1:x2]/Rp, disc.grain_size[1][x1:x2], color=next(color2), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-            axes[1][0].semilogy(grid.Rc[x1:x2]/Rp, disc.Sigma_D[0][x1:x2], color=next(color3), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-            axes[1][1].semilogy(grid.Rc[x1:x2]/Rp, disc.Sigma_D[1][x1:x2], color=next(color4), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi)))
-
-            
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
 
-        # plotting configuration
-        for row in range(len(axes)):
-            for column in range(len(axes[row])):
-                axes[row][column].minorticks_off()
-                axes[row][column].legend(fontsize=10)
-                axes[row][column].grid(True)
-
-        axes[0][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[0][0].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
-        axes[0][0].set_title('Gas Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        axes[0][1].set_xlabel('Radius (AU)', fontsize=15)
-        axes[0][1].set_ylabel('Grain Size (cm)', fontsize=15)
-        axes[0][1].set_title('Characteristic Pebble Size with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-
-        axes[1][0].set_ylim(10**-9, 10**4)
-        axes[1][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[1][0].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
-        axes[1][0].set_title('Dust Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        
-        axes[1][1].set_ylim(10**-6, 10**4)
-        axes[1][1].set_xlabel('Radius (AU)', fontsize=15)
-        axes[1][1].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
-        axes[1][1].set_title('Pebble Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-
-        plt.tight_layout(pad=3.5)
-        
-        # saving figure
-        fig.savefig(f"Winter_2026/Figs/replication_test_Mp={Mp}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Mdot={disc_params['Mdot']:.1e}.png")
-
         # Save data to json
-        with open(f"Winter_2026/Data/replication_test_Mp={Mp}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Mdot={disc_params['Mdot']:.1e}.json", "w") as f:
+        with open(f"Winter_2026/Data/Stammler2023rep/rep_nogap_test4_vfrag={frag_vel:.1f}.json", "w") as f:
             json.dump(data, f)
 
+# for continuous intervals
+time_ints = list((np.logspace(0, 7, 1000)) / 10**6)
 
 if __name__ == "__main__":
     # Define configuration dictionary
@@ -773,42 +807,42 @@ if __name__ == "__main__":
         },
         "star": {
             "M": 1.0, # Solar masses
-            "R": 2.5, # Solar radii
+            "R": 1.0, # Solar radii
             "T_eff": 4000 # Kelvin
         },
         "simulation": {
             "t_initial": 0,
-            "t_final": 1.5,
-            "t_interval": [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5], #Myr
+            "t_final": 1,
+            "t_interval": time_ints, #Myr
         },
         "disc": {
-            "alpha": 3e-3,
+            "alpha": 1e-3,
             "M": 0.05, # solar masses
             "d2g": 0.01,
-            "Mdot": 1e-7, # for Tmax=1500
+            "Mdot": 8.85e-9, # for Tmax=1500
             "Sc": 1.0, # schmidt number
-            "Rd": 50, # AU
+            "Rd": 30, # AU
             'gamma': 1
         },
         "eos": {
             "type": "LocallyIsothermalEOS", # "SimpleDiscEOS", "LocallyIsothermalEOS", or "IrradiatedEOS"
             "opacity": "Tazzari",
-            "h0": 0.05,
-            "q": -0.5,
+            "h0": 0.05455,
+            "q": -1/4,
             "Tmax": 1500.
         },
         "transport": {
             "gas_transport": True,
             "radial_drift": True,
-            "diffusion": False,
+            "diffusion": True,
             "van_leer": False
         },
         "dust_growth": {
-            "feedback": False,
+            "feedback": True,
             "settling": True,
             "f_ice": 1,
-            "uf_0": 500,          # Fragmentation velocity for ice-free grains (cm/s)
-            "uf_ice": 500,       # Set same as uf_0 to ignore ice effects
+            "uf_0": 10000,          # Fragmentation velocity for ice-free grains (cm/s)
+            "uf_ice": 10000,       # Set same as uf_0 to ignore ice effects
             "thresh": 0.5        # Set high threshold to prevent ice effects
         },
         "chemistry": {
@@ -821,8 +855,8 @@ if __name__ == "__main__":
         "planets": {
             'include_planets': False,
             "planet_model": "Bitsch2015Model",
-            "Rp": [5.2], #[1, 5, 10, 20, 30], # initial position of embryo [AU]
-            "Mp": [0.5], #[0.1, 0.1, 0.1, 0.1, 0.1], # initial mass of embryo [M_Earth]
+            "Rp": [5], #[1, 5, 10, 20, 30], # initial position of embryo [AU]
+            "Mp": [0.2994], #mass of saturn in Mjup
             "implant_time": [2], # 2pi*t(years)
             "pb_gas_f": 0.05, # Percent of accreted solids converted to gas
             "migrate" : False,
@@ -843,12 +877,11 @@ if __name__ == "__main__":
             "e_rad": 0.9
         },
         "gap": {
-            'on':True,
+            'on':False,
             'type':'duffell2019', # 'duffell2019' or 'kanagawa2016'
         }
     }
 
     run_model(config)
 
-# time at orbit 10 000: 0.7457358726866171 Myr
-# time at orbit 20 000: 1.4914717453732342 Myr
+
