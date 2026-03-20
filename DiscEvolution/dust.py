@@ -993,7 +993,9 @@ class SingleFluidDrift(object):
         sink_term_1 = (pla_eff / d) * M_peb[1] / (2 * np.pi * disc.R) * disc.is_critical[1]
 
         # Convert to dust fraction when returning
-        return sink_term_0 / Sigma, sink_term_1 / Sigma
+        tiny = np.finfo(Sigma.dtype).tiny
+        Sigma_safe = np.maximum(Sigma, tiny)
+        return sink_term_0 / Sigma_safe, sink_term_1 / Sigma_safe
     
     def __call__(self, dt, disc, gas_tracers=None, dust_tracers=None, v_visc=None):
         """Apply the update for radial drift over time-step dt"""
@@ -1040,7 +1042,10 @@ class SingleFluidDrift(object):
             if disc._planetesimal.ice_abund and (dust_tracers is not None):
                 # Find fraction of each dust species
                 tracer_total = dust_tracers.sum(axis=0)
-                species_frac = dust_tracers/tracer_total
+                tiny = np.finfo(dust_tracers.dtype).tiny
+                tracer_total_safe = np.maximum(tracer_total, tiny)
+                species_frac = dust_tracers / tracer_total_safe
+                species_frac[:, tracer_total <= tiny] = 0.0
 
                 # Apply change in species dust fraction to dust tracers
                 dust_tracers[:] -= species_frac * (L0*dt + L1*dt)
