@@ -2,8 +2,8 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-file_path1 = "Winter_2026/Data/Gap_Mp=2Mj_alpha=1.0e-03_M=5.0e-01_Rd=5.0e+01.json"
-file_path2 = "Winter_2026/Data/Gap_Mp=2Mj_alpha=1.0e-04_M=5.0e-01_Rd=5.0e+01.json"
+file_path1 = "Winter_2026/Data/Gap_duffell_Mp=0.5Mj_alpha=1.0e-03_M=5.0e-02_Rd=5.0e+01.json"
+file_path2 = "Winter_2026/Data/Gap_duffell_Mp=0.5Mj_alpha=1.0e-04_M=5.0e-02_Rd=5.0e+01.json"
 
 # getting data from alpha = 1e-3 
 # only plotting data from the last time step
@@ -32,7 +32,7 @@ gradP4 = np.array(data4['pressure gradient'][-1])
 
 # plotting comparison figures
 fig, axes = plt.subplots(3, 2, figsize=(20,18))
-fig.suptitle('Comparison of Disk Properties for α = $10^{-3}$ (blue) and $10^{-4}$ (red) at 1 Myr \n for a Planetary Gap with Mp = 2Mj', fontsize=20)
+fig.suptitle('Comparison of Disk Properties for α = $10^{-3}$ (blue) and $10^{-4}$ (red) at 1 Myr \n for a Planetary Gap with Mp = 0.5Mj', fontsize=20)
 
 # Gas density
 axes[0][0].loglog(R3, sigmaG3, color='blue')
@@ -56,7 +56,7 @@ axes[1][0].loglog(R4, sigmaD4, color='red')
 axes[1][0].set_title('Dust Surface Density', fontsize=17)
 axes[1][0].set_xlabel('Radius (AU)', fontsize=15)
 axes[1][0].set_ylabel('Surface Density $(g/cm^3)$', fontsize=15)
-axes[1][0].set_ylim(10**-6, 10**3)
+axes[1][0].set_ylim(10**-7, 10**3)
 axes[1][0].grid(True)
 
 # Pebble Surface Density
@@ -65,7 +65,7 @@ axes[1][1].loglog(R4, sigmaP4, color='red')
 axes[1][1].set_title('Pebble Surface Density', fontsize=17)
 axes[1][1].set_xlabel('Radius (AU)', fontsize=15)
 axes[1][1].set_ylabel('Surface Density $(g/cm^3)$', fontsize=15)
-axes[1][1].set_ylim(10**-4, 10**3)
+axes[1][1].set_ylim(10**-5, 10**3)
 axes[1][1].grid(True)
 
 # Pressure gradient
@@ -92,5 +92,5 @@ for row in range(len(axes)):
 
 plt.tight_layout(pad=3.5)
 
-plt.savefig('Winter_2026/Figs/alpha_comparison_Mp=2Mj.png')
+plt.savefig('Winter_2026/Figs/duffell_alpha_comparison_Mp=0.5Mj.png')
 
