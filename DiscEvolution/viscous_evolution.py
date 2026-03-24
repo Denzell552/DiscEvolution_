@@ -282,7 +282,7 @@ class ViscousEvolutionFV(object):
 
         if S is None:
             S = disc.Sigma 
-        return - 0.5 * self._dS[1:-1] / (S[1:] + S[:-1])
+        return - 2.0 * self._dS[1:-1] / (S[1:] + S[:-1])
 
     def max_timestep(self, disc):
         """Courant limited time-step"""
@@ -447,7 +447,7 @@ class HybridWindModel(object):
 
         if S is None:
             S = disc.Sigma 
-        return - 0.5 * (self._f_visc + self._f_wind)[1:-1] / (S[1:] + S[:-1])
+        return - 2.0 * (self._f_visc + self._f_wind)[1:-1] / (S[1:] + S[:-1])
 
     def _fluxes(self):
         """Compute the mass fluxes and loss term """
@@ -519,9 +519,9 @@ class HybridWindModel(object):
 
             if disc.chem:
                 # update dust/gas fractions stored in chemisry accordingly
-                disc._planetesimal.ice_abund.data[:] *= np.nan_to_num(Dust_Frac_New[2]/disc._eps[2])
+                disc._planetesimal.ice_abund.data[:] *= np.nan_to_num(Dust_Frac_New[2]/(disc._eps[2]+1.e-300))
                 disc.chem.gas.data[:] *= (1 - Dust_Frac_New.sum(0))/(1 - disc._eps.sum(0))
-                disc.chem.ice.data[:] *= Dust_Frac_New[:2].sum(0)/disc._eps[:2].sum(0)
+                disc.chem.ice.data[:] *= Dust_Frac_New[:2].sum(0)/(disc._eps[:2].sum(0)+1.e-300)
 
             disc._eps = np.where(Dust_Frac_New < 0, 1e-300, Dust_Frac_New)
         else:
