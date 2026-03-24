@@ -304,7 +304,7 @@ def run_model(config):
         if wind_params["on"]:
             gas = HybridWindModel(wind_params['psi_DW'], lambda_DW)
         else:
-            gas = ViscousEvolution()
+            gas = ViscousEvolutionFV()
     
     diffuse = None
     if transport_params['diffusion']:
@@ -416,10 +416,73 @@ def run_model(config):
         elif gap_params['type'] == 'suriano2018':
             '''
             Wind driven ring: Inserts a pressure bump that represents a wind driven ring
-            Gaussian/Lorentzian width ~ a few H
-            Amplitude guided by Suranio 
+            using a Gaussian profile with a specified width and depth.
+
+            create k amount of rings between 1 and 1000 AU with the width getting larger with radius and the depth getting smaller with radius.
+            The rings are not centered on a planet, but rather represent a generic wind driven ring.
             '''
-            pass
+            # before 5 AU
+            substructures = []
+            ring_width = 0.1
+            ring_depth = 0.09
+            ring_loc = 1.5
+            gap_width = 0.1
+            gap_depth = 0.3 
+            for x in range(7):
+                # wind ring
+                ring_height = 1 / (1 - (1 - ring_depth) * np.exp(-((grid.Rc - ring_loc) / ring_width)**4))
+                # gap introduced by the ring
+                gap_height = 1 - (1 - gap_depth) * np.exp(-((grid.Rc - (ring_loc - ring_width - gap_width)) / gap_width)**4)
+
+                # for small transition bump
+                if x == 7:
+                    ring_height = 1 / (1 - (1 - ring_depth+0.05) * np.exp(-((grid.Rc - ring_loc) / ring_width)**4))
+
+                substructures.append(ring_height)
+                substructures.append(gap_height)
+
+                ring_loc += 0.5
+
+            # for after 5 AU
+            ring_width = 0.25
+            ring_depth = 0.15
+            gap_width = 0.3
+            gap_depth = 0.0005
+            ring_loc = 5.5
+
+            multiplier = 0
+
+            for _ in range(gap_params['num_rings']):
+
+                # wind ring
+                ring_height = 1 / (1 - (1 - ring_depth) * np.exp(-((grid.Rc - ring_loc) / ring_width)**4))
+
+                # gap created by the bump
+                gap_height = 1 - (1 - gap_depth) * np.exp(-((grid.Rc - (ring_loc - ring_width - gap_width)) / gap_width)**4)
+
+                avg = (ring_height + gap_height) / 2
+                substructures.append(avg)
+
+                ring_width += 0.05
+                ring_depth += 0.05
+                ring_loc += 1.5 + multiplier
+                gap_width += 0.1
+
+                multiplier += 0.5
+
+            substructures = np.array(substructures)
+
+            # Treat baseline values (~1) as no features
+            mask = ~np.isclose(substructures, 1, atol=1e-12)
+
+            # Mean only over non-1 values at each radius
+            num = np.where(mask, substructures, 0).sum(axis=0)
+            den = mask.sum(axis=0)
+
+            profile = np.where(den > 0, num / den, 1) # if there are no features at a radius, keep it as 1
+            disc.set_gap_profile(profile)
+
+
     
     def M_flux(disc):
         """Compute the radial flux of dust in the disk.
@@ -484,6 +547,11 @@ def run_model(config):
     data['time'] = sim_params['t_interval']
     data['Mdot'] = []
     data['Mtot'] =[]
+    data['Pressure'] = []
+    data['viscosity'] = []
+    data['pressure_gradient'] = []
+    data['pebble_flux'] = []
+    data['stokes_number'] = []
 
 
     if alpha_SS > 5e-3:
@@ -564,6 +632,8 @@ def run_model(config):
             
             vr = disc._gas.viscous_velocity(disc, Sigma)
 
+            flux_D, flux_P = M_flux(disc)
+
             # appending data for output 
             data["Sigma_G"].append(disc.Sigma_G.copy().tolist())
             data["Sigma_dust"].append(disc.Sigma_D[0].copy().tolist())
@@ -573,13 +643,18 @@ def run_model(config):
             data['dust_drift_velocity'].append(disc.v_drift[0].copy().tolist())
             data['Mdot'].append(disc.Mdot(vr[0]))
             data['Mtot'].append(disc.Mtot()/Msun)
+            data['Pressure'].append(disc.P.copy().tolist())
+            data['viscosity'].append(disc.nu.copy().tolist())
+            data['pressure_gradient'].append(gammaP(disc).copy().tolist())
+            data['pebble_flux'].append(flux_P.copy().tolist())
+            data['stokes_number'].append(disc.Stokes().copy().tolist())
 
 
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
 
         # Save data to json
-        with open(f"Winter_2026/Data/wind_model/test3_alpha_psi={wind_params['psi_DW']}.json", "w") as f:
+        with open(f"Winter_2026/Datawind_model/test_1Myrs_vfrag=50_psi={wind_params['psi_DW']}.json", "w") as f:
             json.dump(data, f)
 
 
@@ -602,7 +677,7 @@ if __name__ == "__main__":
         "simulation": {
             "t_initial": 0,
             "t_final": 1,
-            "t_interval": [0, 0.25, 0.5, 0.75, 1], #Myr
+            "t_interval": [0,0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1], #Myr
         },
         "disc": {
             "alpha": 1e-3,
@@ -630,8 +705,8 @@ if __name__ == "__main__":
             "feedback": True,
             "settling": True,
             "f_ice": 1,
-            "uf_0": 500,          # Fragmentation velocity for ice-free grains (cm/s)
-            "uf_ice": 500,       # Set same as uf_0 to ignore ice effects
+            "uf_0": 5000,          # Fragmentation velocity for ice-free grains (cm/s)
+            "uf_ice": 5000,       # Set same as uf_0 to ignore ice effects
             "thresh": 0.5        # Set high threshold to prevent ice effects
         },
         "chemistry": {
@@ -662,12 +737,13 @@ if __name__ == "__main__":
         },
         "winds": {
             "on": True,
-            "psi_DW": 100,
+            "psi_DW": 10,
             "e_rad": 0.9
         },
         "gap": {
             'on':False,
-            'type':'duffell2019', # 'duffell2019' or 'kanagawa2016'
+            'type':'suriano2018', # 'duffell2019' or 'kanagawa2016'
+            'num_rings': 5
         }
     }
 

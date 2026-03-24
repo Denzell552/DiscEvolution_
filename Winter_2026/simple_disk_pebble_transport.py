@@ -518,6 +518,9 @@ def run_model(config):
                 ap=planet_params['Rp'][0],
             )
 
+            Mp = planet_params['Mp'][0]
+            Rp = planet_params['Rp'][0]
+
             # gap depth array
             gap_depth = planet.gap_profile(disc)
 
@@ -583,7 +586,7 @@ def run_model(config):
     # Preparing plots
     # ========================
 
-    fig, axes = plt.subplots(5, 2, figsize=(20, 30))
+    fig, axes = plt.subplots(6, 2, figsize=(20, 36))
     plt.subplots_adjust(bottom=0.6, top=0.9)
 
     # find Mdot to display below
@@ -602,6 +605,8 @@ def run_model(config):
     color6=iter(plt.cm.Oranges(np.linspace(0.4, 1, 8)))
     color7=iter(plt.cm.BuGn(np.linspace(0.4, 1, 8)))
     color8=iter(plt.cm.PuBu(np.linspace(0.4, 1, 8)))
+    color9=iter(plt.cm.GnBu(np.linspace(0.4, 1, 8)))
+    color10=iter(plt.cm.OrRd(np.linspace(0.4, 1, 8)))
 
 
     # Run model
@@ -616,6 +621,8 @@ def run_model(config):
     data['gap_dust_fraction'] = []
     data['gap_pebble_fraction'] = []
     data['pebble size'] = []
+    data['N_dust'] = []
+    data['N_pebbles'] = []
     data['pressure'] = []
     data['pressure gradient'] = []
 
@@ -697,13 +704,20 @@ def run_model(config):
             
             # calculating fraction of dust and pebbles that have crossed outer gap edge
             flux_D, flux_P = M_flux(disc)
-            outer_edge = np.argmin(np.abs(grid.Rc - (Rp + width)))
-            inner_edge = np.argmin(np.abs(grid.Rc - (Rp - width)))
+            inner_edge = np.argmin(np.abs(gap_depth[:np.argmin(np.abs(grid.Rc - Rp))] - (np.max(gap_depth) + np.min(gap_depth)) / 2)) # calculates inner edge at half max depth
+            outer_edge = np.argmin(np.abs(gap_depth[np.argmin(np.abs(grid.Rc - Rp)):] - (np.max(gap_depth) + np.min(gap_depth)) / 2)) + np.argmin(np.abs(grid.Rc - Rp)) # calculates inner edge at half max depth
             Fout0, Fin0 = flux_D[outer_edge], flux_D[inner_edge]
             Fout1, Fin1 = flux_P[outer_edge], flux_P[inner_edge]
 
             gap_frac_dust = Fin0 / Fout0 
             gap_frac_peb = Fin1 / Fout1 
+
+            a_dust = disc.grain_size[0]
+            a_peb = disc.grain_size[1]
+            m_dust = (4.0 / 3.0) * np.pi * (a_dust ** 3) # density = 1 g/cm^3
+            m_peb = (4.0 / 3.0) * np.pi * (a_peb ** 3) # density = 1 g/cm^3
+            N_dust = disc.Sigma_D[0] / m_dust
+            N_peb = disc.Sigma_D[1] / m_peb
 
             # appending data for output 
             data["R"].append(grid.Rc.copy().tolist())
@@ -713,6 +727,8 @@ def run_model(config):
             data['gap_dust_fraction'].append(gap_frac_dust)
             data['gap_pebble_fraction'].append(gap_frac_peb)
             data['pebble size'].append(disc.grain_size[1].copy().tolist())
+            data['N_dust'].append(N_dust.copy().tolist())
+            data['N_pebbles'].append(N_peb.copy().tolist())
             data['pressure'].append(disc.P.copy().tolist())
             data['pressure gradient'].append(gammaP(disc).copy().tolist())
 
@@ -731,6 +747,10 @@ def run_model(config):
             # plotting mass fluxes
             axes[3][0].loglog(grid.Rc, flux_D, color=next(color7), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # dust mass flux
             axes[3][1].loglog(grid.Rc, flux_P, color=next(color8), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # pebble mass flux
+
+            # plotting number of dust and pebbles
+            axes[4][1].loglog(grid.Rc, N_peb, color=next(color9), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # number of pebbles
+            axes[5][1].loglog(grid.Rc, N_dust, color=next(color10), label='{:.3f} Myr'.format(t / (1.e6 * 2 * np.pi))) # number of dust
             
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
@@ -746,21 +766,21 @@ def run_model(config):
                 axes[row][column].grid(True)
 
         axes[0][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[0][0].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
+        axes[0][0].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[0][0].set_title('Gas Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         
         axes[0][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[0][1].set_ylabel('Grain Size (cm)', fontsize=15)
         axes[0][1].set_title('Characteristic Pebble Size with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
 
-        axes[1][0].set_ylim(10**-5, 10**4)
+        axes[1][0].set_ylim(10**-9, 10**4)
         axes[1][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[1][0].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
+        axes[1][0].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][0].set_title('Dust Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         
-        axes[1][1].set_ylim(10**-3, 10**4)
+        axes[1][1].set_ylim(10**-6, 10**4)
         axes[1][1].set_xlabel('Radius (AU)', fontsize=15)
-        axes[1][1].set_ylabel('Surface Density ($g/cm^3$)', fontsize=15)
+        axes[1][1].set_ylabel('Surface Density ($g/cm^2$)', fontsize=15)
         axes[1][1].set_title('Pebble Surface Density with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
 
         axes[2][0].set_xlabel('Radius (AU)', fontsize=15)
@@ -779,7 +799,7 @@ def run_model(config):
         axes[3][1].set_xlabel('Radius (AU)', fontsize=15)
         axes[3][1].set_ylabel('Mass Flux (g/s)', fontsize=15)
         axes[3][1].set_title('Pebble Mass Flux with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
-        axes[3][1].set_ylim(1e-9, 1)
+        axes[3][1].set_ylim(1e-10, 1)
 
         # plotting raction of dust and pebbles crossing the gap edge
         # removing first 2 terms of to only include data when the gap has formed
@@ -795,13 +815,29 @@ def run_model(config):
         axes[4][0].legend(fontsize=10)
         axes[4][0].grid(True)
 
+        axes[4][1].set_ylim(1e-5, 1e20)
+        axes[4][1].set_xlabel('Radius (AU)', fontsize=15)
+        axes[4][1].set_ylabel('Number Density ($1/cm^2$)', fontsize=15)
+        axes[4][1].set_title('Number Density of Pebbles with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
+        axes[4][1].minorticks_off()
+        axes[4][1].legend(fontsize=10)
+        axes[4][1].grid(True)
+
+        axes[5][1].set_ylim(1e7, 1e20)
+        axes[5][1].set_xlabel('Radius (AU)', fontsize=15)
+        axes[5][1].set_ylabel('Number Density ($1/cm^2$)', fontsize=15)
+        axes[5][1].set_title('Number Density of Dust with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
+        axes[5][1].minorticks_off()
+        axes[5][1].legend(fontsize=10)
+        axes[5][1].grid(True)
+
         plt.tight_layout(pad=3.5)
         
         # saving figure
-        fig.savefig(f"Winter_2026/Figs/Gap_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.png")
+        fig.savefig(f"Winter_2026/Figs/Gap_num_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.png")
 
         # Save data to json
-        with open(f"Winter_2026/Data/Gap_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.json", "w") as f:
+        with open(f"Winter_2026/Data/Gap_num_duffell_Mp={planet_params['Mp'][0]}Mj_alpha={disc_params['alpha']:.1e}_M={disc_params['M']:.1e}_Rd={disc_params['Rd']:.1e}.json", "w") as f:
             json.dump(data, f)
 
 
@@ -867,7 +903,7 @@ if __name__ == "__main__":
             'include_planets': False,
             "planet_model": "Bitsch2015Model",
             "Rp": [10], #[1, 5, 10, 20, 30], # initial position of embryo [AU]
-            "Mp": [2], #[0.1, 0.1, 0.1, 0.1, 0.1], # initial mass of embryo [M_Earth]
+            "Mp": [1], #[0.1, 0.1, 0.1, 0.1, 0.1], # initial mass of embryo [M_Earth]
             "implant_time": [2], # 2pi*t(years)
             "pb_gas_f": 0.05, # Percent of accreted solids converted to gas
             "migrate" : False,
