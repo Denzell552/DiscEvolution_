@@ -50,20 +50,20 @@ pebble_flux_frac_nogap = []
 time_clipped = []
 
 # plotting comparison figure
-fig, ax = plt.subplots(1, 2, figsize=(20, 8))
+fig, ax = plt.subplots(1, 2, figsize=(25, 8))
 
 
 for t in range(len(time)):
     if time[t] % 0.25 == 0:
-        dust_flux_frac1.append(np.abs(dust_flux1[t][inner_edge_idx1] / dust_flux1[t][np.argmin(np.abs(radius - (radius[outer_edge_idx1]+6)))]))
-        dust_flux_frac2.append(np.abs(dust_flux2[t][inner_edge_idx2] / dust_flux2[t][np.argmin(np.abs(radius - (radius[outer_edge_idx2]+6)))]))
-        dust_flux_frac3.append(np.abs(dust_flux3[t][inner_edge_idx3] / dust_flux3[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+6)))]))
-        dust_flux_frac_nogap.append(np.abs(dust_flux4[t][inner_edge_idx1] / dust_flux4[t][np.argmin(np.abs(radius - (radius[outer_edge_idx1]+6)))]))
+        dust_flux_frac1.append(np.abs(dust_flux1[t][inner_edge_idx3] / dust_flux1[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        dust_flux_frac2.append(np.abs(dust_flux2[t][inner_edge_idx3] / dust_flux2[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        dust_flux_frac3.append(np.abs(dust_flux3[t][inner_edge_idx3] / dust_flux3[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        dust_flux_frac_nogap.append(np.abs(dust_flux4[t][inner_edge_idx3] / dust_flux4[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
 
-        pebble_flux_frac1.append(np.abs(pebble_flux1[t][inner_edge_idx1] / pebble_flux1[t][np.argmin(np.abs(radius - (radius[outer_edge_idx1]+6)))]))
-        pebble_flux_frac2.append(np.abs(pebble_flux2[t][inner_edge_idx2] / pebble_flux2[t][np.argmin(np.abs(radius - (radius[outer_edge_idx2]+6)))]))
-        pebble_flux_frac3.append(np.abs(pebble_flux3[t][inner_edge_idx3] / pebble_flux3[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+6)))]))
-        pebble_flux_frac_nogap.append(np.abs(pebble_flux4[t][inner_edge_idx1] / pebble_flux4[t][np.argmin(np.abs(radius - (radius[outer_edge_idx1]+6)))]))
+        pebble_flux_frac1.append(np.abs(pebble_flux1[t][inner_edge_idx3] / pebble_flux1[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        pebble_flux_frac2.append(np.abs(pebble_flux2[t][inner_edge_idx3] / pebble_flux2[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        pebble_flux_frac3.append(np.abs(pebble_flux3[t][inner_edge_idx3] / pebble_flux3[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
+        pebble_flux_frac_nogap.append(np.abs(pebble_flux4[t][inner_edge_idx3] / pebble_flux4[t][np.argmin(np.abs(radius - (radius[outer_edge_idx3]+5)))]))
 
         time_clipped.append(time[t])
 
@@ -72,9 +72,9 @@ ax[0].semilogy(time_clipped, dust_flux_frac1, color='blue', label='Mp=$1 M_J$')
 ax[0].semilogy(time_clipped, dust_flux_frac2, color='green', label='Mp=$0.5 M_J$')
 ax[0].semilogy(time_clipped, dust_flux_frac3, color='red', label='Mp=$2 M_J$')
 ax[0].semilogy(time_clipped, dust_flux_frac_nogap, linestyle='--', color='black', label='No Gap', alpha=0.7)
-ax[0].set_xlabel('Time (Myrs)', fontsize=20)
+ax[0].set_xlabel('Time (Myrs)', fontsize=27)
 ax[0].set_title('Dust Flux Fraction', fontsize=25)
-ax[0].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=20)
+ax[0].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=25)
 
 # plotting pebble flux fraction comparison
 ax[1].semilogy(time_clipped, pebble_flux_frac1, color='blue')
@@ -87,11 +87,11 @@ ax[1].set_title('Pebble Flux Fraction', fontsize=25)
 plt.tight_layout(pad=3.5)
 
 for column in range(len(ax)):
-    ax[column].legend(fontsize=14)
+    ax[column].legend(fontsize=17)
     ax[column].grid(True)
-    ax[column].tick_params(axis='both', which='major', labelsize=19)
+    ax[column].tick_params(axis='both', which='major', labelsize=23)
     plt.setp(ax[column].spines.values(), linewidth=2)
 
-plt.savefig('denzell_scripts/Figs_Updated/flux_vs_planet/planet_comparison.png')
+plt.savefig('denzell_scripts/Figs_Updated/flux_vs_planet/planet_comparison2.png')
 
 

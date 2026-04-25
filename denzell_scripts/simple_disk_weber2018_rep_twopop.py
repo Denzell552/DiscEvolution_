@@ -315,7 +315,7 @@ def run_model(config):
         Sigma0 = star.Omega_k(R[0]) / (3*np.pi*alpha*eos.cs[0]**2) * Mdot / (2*np.pi*AU**2) * Msun  
         Sigma = Sigma0 * (R/R[0])**(p)
 
-        gas_temp = ViscousEvolution()
+        gas_temp = ViscousEvolutionFV()
 
         # iterate for correct Mdot
         for j in range(100):
@@ -323,7 +323,7 @@ def run_model(config):
             disc = AccretionDisc(grid, star, eos, Sigma)
 
             # find Mdot under current parameters
-            Mdot_actual = disc.Mdot(gas_temp.viscous_velocity(disc, Sigma=Sigma)) 
+            Mdot_actual = disc.Mdot(gas_temp.viscous_velocity(disc, S=Sigma)) 
 
             # Scale Sigma to achieve the desired Mdot
             Sigma_new = Sigma*Mdot/Mdot_actual[0] 
@@ -341,7 +341,7 @@ def run_model(config):
         if wind_params["on"]:
             gas = HybridWindModel(wind_params['psi_DW'], lambda_DW)
         else:
-            gas = ViscousEvolution()
+            gas = ViscousEvolutionFV()
     
     diffuse = None
     if transport_params['diffusion']:
@@ -451,7 +451,7 @@ def run_model(config):
             disc.set_gap_profile(gap_depth)
    
     
-    def M_flux(disc):
+    def mass_flux(disc):
         """Compute the radial flux of dust in the disk.
         
         Parameters
@@ -464,25 +464,23 @@ def run_model(config):
         flux : ndarray
             The radial flux of dust and pebbles at each grid point.
         """
-        global dust_v_cm, pebble_v_cm
-
         v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
+        delta_v = dust._compute_deltaV(disc, v_gas)
 
         # for dust grains
-        dust_v = (disc.v_drift[0][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        f_D = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[0][:-1] * np.abs(dust_v)
-        flux_D = f_D * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
-
+        dust_v = v_gas + delta_v[0]
         dust_v_cm = dust_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+        r_cm = grid.Rc * AU # convert from AU to cm
+
+        f_D = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[0][:-1] * dust_v_cm # g/s
 
         # for pebbles
-        pebble_v = (disc.v_drift[1][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        f_P = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[1][:-1] * np.abs(pebble_v)
-        flux_P = f_P * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
-
+        pebble_v = v_gas + delta_v[1]
         pebble_v_cm = pebble_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
 
-        return flux_D, flux_P
+        f_P = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[1][:-1] * pebble_v_cm # g/s
+
+        return f_D, f_P, dust_v_cm, pebble_v_cm
 
 
     def compute_Mdot(disc):
@@ -655,20 +653,16 @@ def run_model(config):
             # for calculating Mdot at current time step
             vr = disc._gas.viscous_velocity(disc, disc.Sigma) 
 
-            '''
-            # calculating dust flux at gap edge
-            half_depth = (np.max(gap_depth) + np.min(gap_depth)) / 2
-            inner_edge = np.argmin(np.abs(gap_depth[:np.argmin(np.abs(grid.Rc - Rp))] - half_depth)) # calculates inner edge at half max depth
-            outer_edge = np.argmin(np.abs(gap_depth[np.argmin(np.abs(grid.Rc - Rp)):] - half_depth)) + np.argmin(np.abs(grid.Rc - Rp)) # calculates inner edge at half max depth   
-            '''
-
-            flux_inner = M_flux(disc)[0][edge()[2]]
-            flux_outer = M_flux(disc)[0][edge()[3]]
+            # flux fraction at gap edges
+            flux_inner = np.abs(mass_flux(disc)[0][edge()[2]])
+            flux_outer = np.abs(mass_flux(disc)[0][edge()[3]])
 
             flux_fraction = flux_inner / flux_outer
 
             #total flux in Mearth/yr
-            flux = M_flux(disc)[0]
+            flux = np.array(mass_flux(disc)[0]) * 3.15e7 / Mearth
+            
+            dust_v_cm = mass_flux(disc)[2]
 
             # appending data for output 
             data["R"].append(grid.Rc.copy().tolist())
@@ -704,7 +698,7 @@ def run_model(config):
                 axes[1][1].loglog(grid.Rc, disc.Stokes()[0], color=next(color4), label=f'{n_orbits:.2f} orbits') 
                 axes[2][0].plot(grid.Rc, disc.v_drift[0], color=next(color5), label=f'{n_orbits:.2f} orbits') 
                 if t / (1.e6 * 2 * np.pi) > 0.11859672847741*1.25:
-                    axes[4][0].loglog(grid.Rc[:-1], flux, color=next(color7), label=f'{n_orbits:.2f} orbits')
+                    axes[4][0].loglog(grid.Rc[:-1], np.abs(flux), color=next(color7), label=f'{n_orbits:.2f} orbits')
                 axes[3][0].loglog(grid.Rc[:-1], dust_v_cm, color=next(color6), label=f'{n_orbits:.2f} orbits')
                 axes[5][0].semilogx(grid.Rc, nu_sigma, color=next(color9), label=f'{n_orbits:.2f} orbits')
                 axes[5][1].semilogx(grid.Rc[:-1], np.abs(vr_cm), color=next(color10), label=f'{n_orbits:.2f} orbits') 
@@ -717,7 +711,6 @@ def run_model(config):
                 axes[1][1].loglog(grid.Rc, disc.Stokes()[0], color=next(color4), label=f'0 orbits') 
                 axes[2][0].plot(grid.Rc, disc.v_drift[0], color=next(color5), label=f'0 orbits') 
                 axes[3][0].loglog(grid.Rc[:-1], dust_v_cm, color=next(color6), label=f'0 orbits')
-                #axes[4][0].loglog(grid.Rc[:-1], flux, color=next(color7), label=f'0 orbits')
                 axes[5][0].semilogx(grid.Rc, nu_sigma, color=next(color9), label=f'0 orbits')
                 axes[5][1].semilogx(grid.Rc[:-1], np.abs(vr_cm), color=next(color10), label=f'0 orbits') 
                 axes[5][1].semilogx(grid.Rc, np.abs(-3/2 * nu_r_cm), color=next(color11))
@@ -787,10 +780,11 @@ def run_model(config):
         axes[3][1].legend(fontsize=10)
 
         axes[4][0].set_xlabel('Radius (AU)', fontsize=15)
-        axes[4][0].set_ylabel('$Flux (M_{earth} / yr)$', fontsize=15)
+        axes[4][0].set_ylabel('$Flux (M_{{\\oplus}} / yr)$', fontsize=15)
         axes[4][0].set_title('Mass Flux with Ψ = {}'.format(wind_params["psi_DW"]), fontsize=17)
         axes[4][0].axvline(edge()[0], color='red', linestyle='--', label='Inner Gap Edge')
         axes[4][0].axvline(edge()[1], color='green', linestyle='--', label='Outer Gap Edge')
+        axes[4][0].set_yscale('symlog', linthresh=1e-10)
 
         axes[4][1].plot(data['orbits'], data['dust_flux_fraction'], marker='o', color='red', label='Dust Flux Fraction')
         axes[4][1].set_xlabel('Number of Orbits', fontsize=15)
@@ -809,10 +803,10 @@ def run_model(config):
         plt.tight_layout(pad=3.5)
         
         # saving figure
-        fig.savefig(f"Winter_2026/Figs/Weber2018rep/rep_size={disc.grain_size[0][0]:.2f}_q={eos_params['q']}_p={disc_params['p']}_Mp={Mp}Mj_alpha={disc_params['alpha']:.1e}_Mdot={disc_params['Mdot']:.1e}.png")
+        fig.savefig(f"denzell_scripts/Figs_Updated/weber/rep_size={disc.grain_size[0][0]:.2f}_Mp={Mp}Mj.png")
 
         # Save data to json
-        with open(f"Winter_2026/Data/Weber2018rep/rep_size={disc.grain_size[0][0]:.2f}_q={eos_params['q']}_p={disc_params['p']}_Mp={Mp}Mj_alpha={disc_params['alpha']:.1e}_Mdot={disc_params['Mdot']:.1e}.json", "w") as f:
+        with open(f"denzell_scripts/Data_Updated/weber/rep_size={disc.grain_size[0][0]:.2f}_Mp={Mp}Mj.json", "w") as f:
             json.dump(data, f)
 
 
@@ -858,7 +852,7 @@ if __name__ == "__main__":
             "gas_transport": True,
             "radial_drift": True,
             "diffusion": True,
-            "van_leer": False
+            "van_leer": True
         },
         "dust_growth": {
             "feedback": False,

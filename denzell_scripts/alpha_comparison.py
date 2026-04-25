@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from DiscEvolution.constants import *
 
-file_path1 = "denzell_scripts/Data_Updated/test_vfrag=1_Rstar=2.5_planetgap_Mp=1_alpha=1.0e-03.json"
-file_path2 = "denzell_scripts/Data_Updated/test_planetgap_Mp=1_alpha=1e-04.json"
+file_path1 = "denzell_scripts/Data_Updated/planetgap_Mp=1_alpha=1.0e-03.json"
+file_path2 = "denzell_scripts/Data_Updated/planetgap_Mp=1_alpha=1.0e-04.json"
 
 # getting data from alpha = 1e-3 
 with open (file_path1, 'r') as fp1:
@@ -75,5 +75,5 @@ for row in range(len(ax)):
         plt.setp(ax[row][column].spines.values(), linewidth=2)
 
 
-plt.savefig('denzell_scripts/Figs_Updated/alpha_comparison_vfrag=1_Rstar=2.5.png')
+plt.savefig('denzell_scripts/Figs_Updated/alpha_comparison2.png')
 

@@ -573,7 +573,7 @@ def run_model(config):
             disc.set_gap_profile(gap_depth)
    
     
-    def M_flux(disc):
+    def mass_flux(disc):
         """Compute the radial flux of dust in the disk.
         
         Parameters
@@ -586,25 +586,23 @@ def run_model(config):
         flux : ndarray
             The radial flux of dust and pebbles at each grid point.
         """
-        global dust_v_cm, pebble_v_cm
-
         v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
+        delta_v = dust._compute_deltaV(disc, v_gas)
 
         # for dust grains
-        dust_v = (disc.v_drift[0][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        f_D = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[0][:-1] * np.abs(dust_v)
-        flux_D = f_D * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
-
+        dust_v = v_gas + delta_v[0]
         dust_v_cm = dust_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+        r_cm = grid.Rc * AU # convert from AU to cm
+
+        f_D = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[0][:-1] * dust_v_cm # g/s
 
         # for pebbles
-        pebble_v = (disc.v_drift[1][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        f_P = 2 * np.pi * grid.Rc[:-1] * disc.Sigma_D[1][:-1] * np.abs(pebble_v)
-        flux_P = f_P * AU**2 / Mearth * yr # convert from g/s to Earth masses per year
-
+        pebble_v = v_gas + delta_v[1]
         pebble_v_cm = pebble_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
 
-        return flux_D, flux_P
+        f_P = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[1][:-1] * pebble_v_cm # g/s
+
+        return f_D, f_P, dust_v_cm, pebble_v_cm
     
 
     # Preparing plots
@@ -631,8 +629,8 @@ def run_model(config):
     data["Sigma_dust"] = []
     data["Sigma_pebbles"] = []
     data['pebble_size'] = []
-    data['pebble_velocity'] = []
-    data['dust_velocity'] = []
+    data['pebble_drift_velocity'] = []
+    data['dust_drift_velocity'] = []
     data['frag_velocity'] = []
     data['time'] = list(sim_params['t_interval'])
     #data['drift_limit'] = []
@@ -715,25 +713,15 @@ def run_model(config):
                             dust_frac[:] += dt * diffuse(disc, dust_frac[:])
 
                 # calculating the accreted mass in this timestep using the flux (in Mearth/year)
-                '''
-                dt_years = dt / (2 * np.pi) # convert from code units to years
-                flux_D_step, flux_P_step = M_flux(disc)
-                dM_dust = flux_D_step[0] * dt_years * Mearth # in grams
-                dM_pebble = flux_P_step[0] * dt_years * Mearth # in grams
+                
+                dt_seconds = dt / (2 * np.pi) * 3.15e7 # convert from code units to seconds
+                flux_D_step, flux_P_step = mass_flux(disc)[0], mass_flux(disc)[1] # in g/s
+                dM_dust = flux_D_step[0] * dt_seconds  # in grams
+                dM_pebble = flux_P_step[0] * dt_seconds  # in grams
                 accreted_dust += dM_dust
                 accreted_pebbles += dM_pebble
                 accreted_total += (dM_dust + dM_pebble)
-                '''
-
-                # getting donor flux
-                DeltaV = dust._compute_deltaV(disc)
-                face_flux = dust._donor_flux(disc.grid.Ree, DeltaV, disc.Sigma, disc.dust_frac[:2]) 
-
-                dM_dust = 2 * np.pi * grid.Rc[0] * face_flux[0][0] * dt * AU**2 # in grams
-                dM_pebble = 2 * np.pi * grid.Rc[0] * face_flux[1][0] * dt * AU**2 # in grams
-                accreted_dust += dM_dust
-                accreted_pebbles += dM_pebble
-                accreted_total += (dM_dust + dM_pebble)
+            
                 
                 # Pin the values to >= 0 and <=1:
                 disc.Sigma[:] = np.maximum(disc.Sigma, 0)     
@@ -758,7 +746,7 @@ def run_model(config):
             frag_vel = disc._frag_velocity(0) * AU * Omega0 / 100
 
             # dust flux in Earth masses per year
-            flux_D, flux_P = M_flux(disc)
+            flux_D, flux_P = mass_flux(disc)[0] * 3.15e7 / Mearth, mass_flux(disc)[1] * 3.15e7 / Mearth
             r_15 = np.argmin(np.abs(grid.Rc - 15))
             r_2 = np.argmin(np.abs(grid.Rc - 2))
             pebble_flux_15 = flux_P[r_15]
@@ -770,8 +758,8 @@ def run_model(config):
             data["Sigma_dust"].append(disc.Sigma_D[0].copy().tolist())
             data["Sigma_pebbles"].append(disc.Sigma_D[1].copy().tolist())
             data['pebble_size'].append(disc.grain_size[1].copy().tolist())
-            data['pebble_velocity'].append(disc.v_drift[1].copy().tolist())
-            data['dust_velocity'].append(disc.v_drift[0].copy().tolist())
+            data['pebble_drift_velocity'].append(disc.v_drift[1].copy().tolist())
+            data['dust_drift_velocity'].append(disc.v_drift[0].copy().tolist())
             data['frag_velocity'].append(frag_vel)
             #data['drift_limit'].append(disc._drift_limit(disc.dust_frac.sum(0))[1].copy().tolist())
             #data['frag_limit'].append(disc._frag_limit().copy().tolist())
@@ -788,7 +776,7 @@ def run_model(config):
             wind_params["psi_DW"] = 0
 
         # Save data to json
-        with open(f"Winter_2026/Data/Stammler2023rep/rep_nogap_test4_vfrag={frag_vel:.1f}.json", "w") as f:
+        with open(f"denzell_scripts/Data_Updated/stalmmer/rep_nogap_h0={eos_params['h0']:.5f}.json", "w") as f:
             json.dump(data, f)
 
 # for continuous intervals
@@ -835,14 +823,14 @@ if __name__ == "__main__":
             "gas_transport": True,
             "radial_drift": True,
             "diffusion": True,
-            "van_leer": False
+            "van_leer": True
         },
         "dust_growth": {
             "feedback": True,
             "settling": True,
             "f_ice": 1,
-            "uf_0": 10000,          # Fragmentation velocity for ice-free grains (cm/s)
-            "uf_ice": 10000,       # Set same as uf_0 to ignore ice effects
+            "uf_0": 1000,          # Fragmentation velocity for ice-free grains (cm/s)
+            "uf_ice": 1000,       # Set same as uf_0 to ignore ice effects
             "thresh": 0.5        # Set high threshold to prevent ice effects
         },
         "chemistry": {

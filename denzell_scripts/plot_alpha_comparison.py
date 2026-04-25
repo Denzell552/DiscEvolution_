@@ -62,7 +62,7 @@ pebble_flux_frac4_nogap = []
 time_clipped = []
 
 # plotting comparison figure
-fig, ax = plt.subplots(2, 2, figsize=(20,16))
+fig, ax = plt.subplots(2, 2, figsize=(25,16))
 
 color1 = iter(plt.cm.Purples(np.linspace(0.4, 1, 9)))
 color2 = iter(plt.cm.Reds(np.linspace(0.4, 1, 9)))
@@ -84,17 +84,16 @@ for t in range(len(time)):
 
 
 # Pebble density alpha = 1e-3
-ax[0,0].set_title('$\\alpha=10^{-3}$', fontsize=25)
-ax[0,0].set_xlabel('Radius (AU)', fontsize=20)
-ax[0,0].set_ylabel('$\\Sigma [g/cm^2]$', fontsize=20)
+ax[0,0].set_title('$\\alpha=10^{-3}$', fontsize=27)
+ax[0,0].set_xlabel('Radius (AU)', fontsize=25)
+ax[0,0].set_ylabel('$\\Sigma [g/cm^2]$', fontsize=25)
 ax[0,0].axvline(radius[inner_edge_idx3], color='black')
 ax[0,0].axvline(radius[outer_edge_idx3]+5, color='black')
 ax[0,0].set_yscale('symlog', linthresh=1e-5)
 
 # Pebble density alpha = 1e-4
-ax[0,1].set_title('$\\alpha=10^{-4}$', fontsize=25)
-ax[0,1].set_xlabel('Radius (AU)', fontsize=20)
-ax[0,1].set_ylabel('$\\Sigma [g/cm^2]$', fontsize=20)
+ax[0,1].set_title('$\\alpha=10^{-4}$', fontsize=27)
+ax[0,1].set_xlabel('Radius (AU)', fontsize=25)
 ax[0,1].axvline(radius[inner_edge_idx4], color='black')
 ax[0,1].axvline(radius[outer_edge_idx4], color='black')
 ax[0,1].set_yscale('symlog', linthresh=1e-5)
@@ -104,26 +103,25 @@ ax[1,0].semilogy(time_clipped, dust_flux_frac3, color='blue', label=r'$\alpha=10
 ax[1,0].semilogy(time_clipped, dust_flux_frac4, color='green', label=r'$\alpha=10^{-4}$')
 ax[1,0].semilogy(time_clipped, dust_flux_frac3_nogap, color='blue', linestyle='dashed', label=r'$\alpha=10^{-3}$ no gap', alpha=0.7)
 ax[1,0].semilogy(time_clipped, dust_flux_frac4_nogap, color='green', linestyle='dashed', label=r'$\alpha=10^{-4}$ no gap', alpha=0.7)
-ax[1,0].set_title('Dust Flux Fraction', fontsize=25)
-ax[1,0].set_xlabel('Time (Myrs)', fontsize=20)
-ax[1,0].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=20)
+ax[1,0].set_title('Dust Flux Fraction', fontsize=27)
+ax[1,0].set_xlabel('Time (Myrs)', fontsize=25)
+ax[1,0].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=27)
 
 # Pebble flux fraction
 ax[1,1].semilogy(time_clipped, pebble_flux_frac3, color='blue')
 ax[1,1].semilogy(time_clipped, pebble_flux_frac4, color='green')
 ax[1,1].semilogy(time_clipped, pebble_flux_frac3_nogap, color='blue', linestyle='dashed', alpha=0.7)
 ax[1,1].semilogy(time_clipped, pebble_flux_frac4_nogap, color='green', linestyle='dashed', alpha=0.7)
-ax[1,1].set_title('Pebble Flux Fraction', fontsize=25)
-ax[1,1].set_xlabel('Time (Myrs)', fontsize=20)
-ax[1,1].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=20)
+ax[1,1].set_title('Pebble Flux Fraction', fontsize=27)
+ax[1,1].set_xlabel('Time (Myrs)', fontsize=25)
 
 plt.tight_layout(pad=3.5)
 
 for row in range(len(ax)):
     for column in range(len(ax[row])):
-        ax[row][column].legend(fontsize=14)
+        ax[row][column].legend(fontsize=17)
         ax[row][column].grid(True)
-        ax[row][column].tick_params(axis='both', which='major', labelsize=19)
+        ax[row][column].tick_params(axis='both', which='major', labelsize=23)
         plt.setp(ax[row][column].spines.values(), linewidth=2)
 
 custom_handles = [
@@ -132,7 +130,7 @@ custom_handles = [
     Line2D([0], [0], color='black', linestyle='-', label='With Gap'),
     Line2D([0], [0], color='black', linestyle='--', label='No Gap'),
 ]
-ax[1,0].legend(handles=custom_handles, loc='lower right', fontsize=14)
+ax[1,0].legend(handles=custom_handles, loc='lower right', fontsize=20)
 
 plt.savefig('denzell_scripts/Figs_Updated/flux_vs_alpha/alpha_comparison.png')
 

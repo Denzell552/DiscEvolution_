@@ -728,24 +728,6 @@ def run_model(config):
 
         '''
         v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
-
-        # for dust grains
-        dust_v = (disc.v_drift[0][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        dust_v_cm = dust_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
-        r_cm = grid.Rc[:-1] * AU # convert from AU to cm
-
-        f_D = 2 * np.pi * r_cm * disc.Sigma_D[0][:-1] * dust_v_cm # g/s
-
-        # for pebbles
-        pebble_v = (disc.v_drift[1][:-1] + (v_gas * disc.Sigma_G[:-1] / (disc.Sigma_D.sum(0)[:-1] + disc.Sigma_G[:-1]))) / (1 - disc_params['d2g'])
-        pebble_v_cm = pebble_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
-        r_cm = grid.Rc[:-1] * AU # convert from AU to cm
-
-        f_P = 2 * np.pi * r_cm * disc.Sigma_D[1][:-1] * pebble_v_cm # g/s
-        '''
-
-
-        v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
         fg = disc.Sigma_G / (disc.Sigma_D.sum(0) + disc.Sigma_G)
 
         # for dust grains
@@ -761,6 +743,23 @@ def run_model(config):
         r_cm = grid.Rc[1:] * AU # convert from AU to cm
 
         f_P = 2 * np.pi * r_cm * disc.Sigma_D[1][1:] * pebble_v_cm # g/s
+        '''
+
+        v_gas = disc._gas.viscous_velocity(disc, disc.Sigma)
+        delta_v = dust._compute_deltaV(disc, v_gas)
+
+        # for dust grains
+        dust_v = v_gas + delta_v[0]
+        dust_v_cm = dust_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+        r_cm = grid.Rc * AU # convert from AU to cm
+
+        f_D = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[0][:-1] * dust_v_cm # g/s
+
+        # for pebbles
+        pebble_v = v_gas + delta_v[1]
+        pebble_v_cm = pebble_v * AU * yr / 3.15e7 # convert from AU/yr to cm/s
+
+        f_P = 2 * np.pi * r_cm[:-1] * disc.Sigma_D[1][:-1] * pebble_v_cm # g/s
 
         return f_D, f_P, dust_v_cm, pebble_v_cm
 
@@ -793,7 +792,8 @@ def run_model(config):
     data['dust_velocity'] = []
     data['time'] = sim_params['t_interval']
     data['Mdot'] = []
-    data['Mtot'] =[]
+    data['Mdot_ss']= []
+    data['Mtot'] = []
     data['Pressure'] = []
     data['viscosity'] = []
     data['pressure_gradient'] = []
@@ -801,6 +801,8 @@ def run_model(config):
     data['dust_flux'] = []
     data['temperature'] = []
     data['stokes_number'] = []
+    data['frag_limit'] = []
+    data['drift_limit'] = []
     if gap_params['on'] and (gap_params['type'] == 'duffell2019' or gap_params['type'] == 'kanagawa2016'):
         data['gap_profile'] = {
             'Mp': planet_params['Mp'][0],
@@ -808,7 +810,8 @@ def run_model(config):
             'inner_edge': float(edge()[0]),
             'inner_edge_idx': int(edge()[2]),
             'outer_edge': float(edge()[1]),
-            'outer_edge_idx': int(edge()[3])}
+            'outer_edge_idx': int(edge()[3]),
+            'profile': gap_depth.copy().tolist()}
     
     # Define physical bounds for grain sizes
     a_min = 1e-10  # cm (sub-micron floor)
@@ -840,6 +843,11 @@ def run_model(config):
 
         return a_dust, a_pebble
 
+    dust_flux = []
+    pebble_flux = []
+
+    # steady state Mdot calculation
+    Mdot_ss = 3 * np.pi * alpha_SS * eos.cs**2 * disc.Sigma_G / star.Omega_k(grid.Rc) * (2*np.pi*AU**2/Msun) 
 
     if alpha_SS > 5e-3:
         print ("Not Running model - alpha too high.  Alpha, Rd, Mdisk=",eos.alpha, Rd, disc.Mtot()/Msun)
@@ -847,6 +855,7 @@ def run_model(config):
         print ("Running model.  Alpha, Rd, Mdisk=",eos.alpha, Rd, disc.Mtot()/Msun)
         for ti in times:
             while t < ti:
+                
 
                 # find timestep given gas and dust maximum timesteps
                 dt = ti - t
@@ -903,7 +912,16 @@ def run_model(config):
             # used for calculating Mdot at each time step
             vr = disc._gas.viscous_velocity(disc, disc.Sigma_G)
 
+            # steady state Mdot calculation
+            Mdot_ss = 3 * np.pi * alpha_SS * eos.cs**2 * disc.Sigma_G / star.Omega_k(grid.Rc) * (2*np.pi*AU**2/Msun)          
+
             dust_flux, pebble_flux, dust_v_cm, pebble_v_cm = mass_flux(disc)
+
+            # growth limits
+            a_frag_t = disc._frag_limit()
+            a_drift, a_frag_d = disc._drift_limit(disc.dust_frac[0] + disc.dust_frac[1])  
+
+            a_frag = np.minimum(a_frag_t, a_frag_d)
 
             # appending data for output 
             data["Sigma_G"].append(disc.Sigma_G.copy().tolist())
@@ -917,20 +935,23 @@ def run_model(config):
             data['dust_velocity'].append(dust_v_cm.copy().tolist())
             data['Mdot'].append(disc.Mdot(vr[0]))
             data['Mtot'].append(disc.Mtot()/Msun)
+            data['Mdot_ss'].append(Mdot_ss[0].copy().tolist())
             data['Pressure'].append(disc.P.copy().tolist())
             data['viscosity'].append(disc.nu.copy().tolist())
             data['pressure_gradient'].append(gammaP(disc).copy().tolist())
-            data['pebble_flux'].append(pebble_flux.copy().tolist())
-            data['dust_flux'].append(dust_flux.copy().tolist())
+            data['pebble_flux'].append(pebble_flux.tolist())
+            data['dust_flux'].append(dust_flux.tolist())
             data['stokes_number'].append(disc.Stokes().copy().tolist())
             data['temperature'].append(disc.T.copy().tolist())
+            data['frag_limit'].append(a_frag.copy().tolist())
+            data['drift_limit'].append(a_drift.copy().tolist())
 
 
         if not wind_params["on"]:
             wind_params["psi_DW"] = 0
 
         # Save data to json
-        with open(f"denzell_scripts/Data_Updated/flux_vs_alpha/test_nogap_alpha={disc_params['alpha']:.1e}.json", "w") as f:
+        with open(f"denzell_scripts/Data_Updated/wind_disks/wind_alpha={disc_params['alpha']:.1e}_psi={wind_params['psi_DW']:.1f}.json", "w") as f:
             json.dump(data, f)
 
 #planetgap_Mp={planet_params['Mp'][0]}_alpha={disc_params['alpha']:.1e}.json
@@ -943,7 +964,7 @@ if __name__ == "__main__":
             "nr": 1000,
             "spacing": "natural",
             "smart_bining": False,
-            "type": "Booth-Mdot" # "LBP", "Booth-alpha", "Booth-Rd", "Booth-Mdot", "winds-alpha", "winds-Rd", "winds-Mdot" or "tabone"
+            "type": "tabone" # "LBP", "Booth-alpha", "Booth-Rd", "Booth-Mdot", "winds-alpha", "winds-Rd", "winds-Mdot" or "tabone"
         },
         "star": {
             "M": 1.0, # Solar masses
@@ -956,7 +977,7 @@ if __name__ == "__main__":
             "t_interval": [0,0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1, 1.125, 1.25, 1.375, 1.5, 1.625, 1.75, 1.875, 2], #Myr
         },
         "disc": {
-            "alpha": 1e-4,
+            "alpha": 1e-3,
             "M": 0.05, # solar masses
             "d2g": 0.01,
             "Mdot": 1e-8, # solar masses per year
@@ -975,7 +996,7 @@ if __name__ == "__main__":
             "gas_transport": True,
             "radial_drift": True,
             "diffusion": True,
-            "van_leer": False
+            "van_leer": True
         },
         "dust_growth": {
             "feedback": True,
@@ -996,7 +1017,7 @@ if __name__ == "__main__":
             'include_planets': False,
             "planet_model": "Bitsch2015Model",
             "Rp": [10], #[1, 5, 10, 20, 30], # initial position of embryo [AU]
-            "Mp": [1], 
+            "Mp": [2], 
             "implant_time": [2], # 2pi*t(years)
             "pb_gas_f": 0.05, # Percent of accreted solids converted to gas
             "migrate" : False,
@@ -1012,13 +1033,13 @@ if __name__ == "__main__":
             "pla_eff": 0.05
         },
         "winds": {
-            "on": False,
-            "psi_DW": 10,
+            "on": True,
+            "psi_DW": 100,
             "e_rad": 0.9
         },
         "gap": {
             'on':False,
-            'type':'duffell2019', # 'duffell2019' or 'kanagawa2016'
+            'type':'suriano2018', # 'duffell2019', 'kanagawa2016' or 'suriano2018'
         }
     }
 

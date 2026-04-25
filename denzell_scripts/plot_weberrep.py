@@ -2,11 +2,11 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-fp1 = 'Winter_2026/Data/Weber2018rep/rep_size=0.01_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
-fp2 = 'Winter_2026/Data/Weber2018rep/rep_size=0.03_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
-fp3 = 'Winter_2026/Data/Weber2018rep/rep_size=0.10_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
-fp4 = 'Winter_2026/Data/Weber2018rep/rep_size=0.30_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
-fp5 = 'Winter_2026/Data/Weber2018rep/rep_size=1.00_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
+fp1 = 'denzell_scripts/Data_Updated/weber/rep_size=0.01_Mp=2Mj.json'
+fp2 = 'denzell_scripts/Data_Updated/weber/rep_size=0.03_Mp=2Mj.json'
+fp3 = 'denzell_scripts/Data_Updated/weber/rep_size=0.10_Mp=2Mj.json'
+fp4 = 'denzell_scripts/Data_Updated/weber/rep_size=0.30_Mp=2Mj.json'
+fp5 = 'denzell_scripts/Data_Updated/weber/rep_size=1.00_Mp=2Mj.json'
 
 #fp6 = 'Winter_2026/Data/Weber2018rep/rep_nogap_size=0.01_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.json'
 
@@ -65,12 +65,14 @@ ax[0].semilogy(r[x1:x2], pebble_density2[x1:x2] / gas_density_0[x1:x2], color=ne
 ax[0].semilogy(r[x1:x2], pebble_density3[x1:x2] / gas_density_0[x1:x2], color=next(c), label='0.1cm')
 ax[0].semilogy(r[x1:x2], pebble_density4[x1:x2] / gas_density_0[x1:x2], color=next(c), label='0.3cm')
 ax[0].semilogy(r[x1:x2], pebble_density5[x1:x2] / gas_density_0[x1:x2], color=next(c), label='1.0cm')
-ax[0].set_xlabel('r', fontsize=20)
-ax[0].set_ylabel('$\\Sigma / \\Sigma_{g,0}$', fontsize=23)
-ax[0].set_title('Mp = 2Mj (q ≈ 5e-4)', fontsize=25)
+ax[0].set_xlabel('r', fontsize=25)
+ax[0].set_ylabel('$\\Sigma / \\Sigma_{g,0}$', fontsize=25)
+ax[0].set_title('Mp = 2Mj (q ≈ 2e-3)', fontsize=27)
 ax[0].grid(True)
-ax[0].tick_params(axis='both', which='major', labelsize=16)
-ax[0].legend(fontsize=16)
+ax[0].tick_params(axis='both', which='major', labelsize=23)
+ax[0].legend(fontsize=17)
+plt.setp(ax[0].spines.values(), linewidth=2)
+
 
 color = iter(plt.cm.gist_earth(np.linspace(0, 0.9, 5)))
 
@@ -79,15 +81,17 @@ ax[1].plot(orbits[3:], dust_flux2[3:], marker='o', color=next(color), label='0.0
 ax[1].plot(orbits[3:], dust_flux3[3:], marker='o', color=next(color), label='0.1cm')
 ax[1].plot(orbits[3:], dust_flux4[3:], marker='o', color=next(color), label='0.3cm')
 ax[1].plot(orbits[3:], dust_flux5[3:], marker='o', color=next(color), label='1.0cm')
-ax[1].set_xlabel('Number of Orbits', fontsize=20)
-ax[1].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=23)
-#ax_flux.set_title('Dust Flux Fraction for Different Grain Sizes at \n ~20000 orbits (~0.24Myrs)for a Planetary Gap with Mp = 0.5Mj (q~5e-4)', fontsize=16)
+ax[1].set_xlabel('Number of Orbits', fontsize=25)
+ax[1].set_ylabel('$\\phi_{inner} / \\phi_{outer}$', fontsize=25)
+#ax_flux.set_title('Dust Flux Fraction for Different Grain Sizes at \n ~20000 orbits (~0.24Myrs)for a Planetary Gap with Mp = 2Mj (q~2e-3)', fontsize=16)
 ax[1].grid(True)
-ax[1].tick_params(axis='both', which='major', labelsize=16)
-ax[1].legend(fontsize=16)
+ax[1].tick_params(axis='both', which='major', labelsize=23)
+ax[1].legend(fontsize=17)
 #ax[1].set_ylim(0, 1)
 ax[1].set_xlim(10000,21000)
+plt.setp(ax[1].spines.values(), linewidth=2)
+
 
 plt.tight_layout(pad=3.5)
 
-fig.savefig(f"Winter_2026/Figs/Weber2018rep/weber2018rep_q=-0.5_p=-0.5_Mp=2Mj_alpha=3.0e-03_Mdot=1.0e-07.png")
+fig.savefig(f"denzell_scripts/Figs_Updated/weber/rep_Mp=2Mj.png")
